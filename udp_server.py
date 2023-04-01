@@ -10,8 +10,8 @@ def main():
     # Set up the server's port number
     UDP_PORT = 8080
 
-    # Display the host machine's IP address
-    print(f"Server IP address: {UDP_IP}")
+    # Display the host machine's IP address and port
+    print(f"Server IP address: {UDP_IP}:{UDP_PORT}")
 
     # Ask the user to confirm start the server
     server_start = input("Press 'y' to start the server: ")
@@ -28,30 +28,31 @@ def main():
     # Receive the image file size from the client
     data, addr = sock.recvfrom(1024)
     file_size = int(data.decode())
+    
+    # Receive the total number of packets from the client
+    data, addr = sock.recvfrom(1024)
+    total_packets = int(data.decode())
 
     # Receive the image file data from the client and write it to a file
     received_data_size = 0
-    expected_seq_num = 0
     with open("test2.jpg", "wb") as f:
-        while received_data_size < file_size:
+        while True:
             data, addr = sock.recvfrom(1028)
             sequence_number = int(data[:4].decode())
             data = data[4:]
+            f.write(data)
+            received_data_size += len(data)
 
-            if sequence_number == expected_seq_num:
-                f.write(data)
-                received_data_size += len(data)
-                expected_seq_num += 1
+            # Send an acknowledgement back to the client
+            sock.sendto("ACK".encode(), addr)
+            print(f"Received packet {sequence_number}/{total_packets}")
 
-                # Send an acknowledgement back to the client
-                sock.sendto(str(sequence_number).zfill(4).encode(), addr)
-                print(f"Received packet {sequence_number}")
-            else:
-                print(f"Discarding duplicate packet {sequence_number}")
+            if sequence_number == total_packets:
+                break
 
     # Close the socket and shut down
     sock.close()
-    print("Image received successfully")
+    print("File received successfully")
 
     # Exit on the console
     input("Press enter to exit")

@@ -30,7 +30,8 @@ def main():
             ack_received = False
             while not ack_received:
                 data, addr = sock.recvfrom(1024)
-                if data.decode() == "ACK":
+                sequence_number_ack = int(data.decode())
+                if sequence_number_ack == sequence_number - 1:
                     ack_received = True
 
             data = f.read(1024)

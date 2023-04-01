@@ -31,17 +31,23 @@ def main():
 
     # Receive the image file data from the client and write it to a file
     received_data_size = 0
+    expected_seq_num = 0
     with open("test2.jpg", "wb") as f:
         while received_data_size < file_size:
             data, addr = sock.recvfrom(1028)
             sequence_number = int(data[:4].decode())
             data = data[4:]
-            f.write(data)
-            received_data_size += len(data)
 
-            # Send an acknowledgement back to the client
-            sock.sendto("ACK".encode(), addr)
-            print(f"Received packet {sequence_number}")
+            if sequence_number == expected_seq_num:
+                f.write(data)
+                received_data_size += len(data)
+                expected_seq_num += 1
+
+                # Send an acknowledgement back to the client
+                sock.sendto(str(sequence_number).zfill(4).encode(), addr)
+                print(f"Received packet {sequence_number}")
+            else:
+                print(f"Discarding duplicate packet {sequence_number}")
 
     # Close the socket and shut down
     sock.close()

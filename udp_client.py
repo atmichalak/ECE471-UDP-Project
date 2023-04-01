@@ -1,6 +1,10 @@
 import os
 import socket
 import sys
+import time
+
+# Define ACK timeout period in seconds
+ACK_TIMEOUT = 1
 
 def main():
     # Set up the server's IP address and port number
@@ -30,9 +34,11 @@ def main():
         data = f.read(packet_size)
         while data:
             packet = str(sequence_number).zfill(4).encode() + data
+
+            # Send packet and start ACK timer
             sock.sendto(packet, (UDP_IP, UDP_PORT))
             print(f"Sent packet {sequence_number}/{total_packets}")
-            sequence_number += 1
+            start_time = time.monotonic()
 
             # Wait for an acknowledgement from the server
             ack_received = False
@@ -40,7 +46,14 @@ def main():
                 data, addr = sock.recvfrom(1024)
                 if data.decode() == "ACK":
                     ack_received = True
-            print(f"Received ACK for packet {sequence_number-1}/{total_packets}")
+                elif time.monotonic() - start_time > ACK_TIMEOUT:
+                    # Resend packet if ACK not received within timeout period
+                    sock.sendto(packet, (UDP_IP, UDP_PORT))
+                    print(f"Resent packet {sequence_number}/{total_packets}")
+                    start_time = time.monotonic()
+
+            print(f"Received ACK for packet {sequence_number}/{total_packets}")
+            sequence_number += 1
             data = f.read(packet_size)
 
     # Close the socket and shut down
@@ -52,4 +65,4 @@ def main():
     sys.exit()
 
 if __name__ == "__main__":
-    main()
+    main()  

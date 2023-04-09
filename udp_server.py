@@ -1,84 +1,117 @@
-import os
+"""
+Author: Alexander Michalak
+
+The `socket` module provides low-level network functionality, while the `struct` module performs conversions between
+Python values and C structs.
+
+`socket` - The `socket` module provides a low-level interface for network communication. It provides functions for
+creating and manipulating sockets, which are the endpoints of a two-way communication link between two programs running
+on a network. The `socket` module is used to create network connection,s send a receive data over the network, and more.
+
+`socket`: https://docs.python.org/3/library/socket.html
+
+`struct` - The `struct` module provides functions for working with structured binary data, such as data in a binary file
+or data sent over a network. It provides functions for packing and unpacking data into and from byte strings, and for
+working with different byte orders and data types. The `struct` module is used to convert data between Python objects
+and binary data.
+
+`struct`: https://docs.python.org/3/library/struct.html
+
+"""
+
 import socket
-import sys
-import time
+import struct
 
-# Define NAK timeout period in seconds
-NAK_TIMEOUT = 1
+# Define the buffer size (increased packet size to include packet header)
+BUFFER_SIZE = 1036
 
-def main():
-    # Get the host machine's IP address
-    hostname = socket.gethostname()
-    UDP_IP = socket.gethostbyname(hostname)
+# Define a function to receive the image data from the client
+def receive_image(sock):
+    # Receive the size of the image from the client
+    data, client_address = sock.recvfrom(BUFFER_SIZE)
+    filesize = int(data.decode())
+    print(f"Received image size: {filesize}")
 
-    # Set up the server's port number
-    UDP_PORT = 8080
-
-    # Display the host machine's IP address and port
-    print(f"Server IP address: {UDP_IP}:{UDP_PORT}")
-
-    # Ask the user to confirm start the server
-    server_start = input("Press 'y' to start the server: ")
-    if server_start.lower() != 'y':
-        print("Server not started")
-        sys.exit()
-
-    # Create a socket object
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-
-    # Bind the socket to the IP address and port number
-    sock.bind((UDP_IP, UDP_PORT))
-
-    # Receive the image file size from the client
-    data, addr = sock.recvfrom(1024)
-    file_size = int(data.decode())
-
-    # Receive the total number of packets from the client
-    data, addr = sock.recvfrom(1024)
-    total_packets = int(data.decode())
-
-    # Receive the image file data from the client and write it to a file
-    received_data_size = 0
-    received_packets = set()
+    # Open a new file to write the image data to
     with open("test2.jpg", "wb") as f:
-        while len(received_packets) < total_packets:
-            # Set the NAK timer for the next missing packet
-            missing_packets = set(range(1, total_packets+1)) - received_packets
-            if missing_packets:
-                next_missing_packet = min(missing_packets)
-                nak_timer = time.monotonic() + NAK_TIMEOUT
-            else:
-                nak_timer = None
+        seq_num = 1
+        while True:
+            # Receive the packet from the client
+            packet, client_address = sock.recvfrom(BUFFER_SIZE)
+            print(f"Received packet {seq_num} with {len(packet)-8} bytes of data")
 
-            # Receive a packet or timeout
-            try:
-                if nak_timer is None:
-                    data, addr = sock.recvfrom(1028)
-                else:
-                    timeout = max(0, nak_timer - time.monotonic())
-                    sock.settimeout(timeout)
-                    data, addr = sock.recvfrom(1028)
-            except socket.timeout:
-                print(f"NAK for packet {next_missing_packet}")
+            # Unpack the packet and get the sequence number, data, and file size
+            packet_data = struct.unpack('!I1024sI', packet)
+            packet_seq_num = packet_data[0]
+            packet_data = packet_data[1]
+            packet_filesize = packet_data[2]
+
+            # If the sequence number is not what we expect, ignore the packet and continue waiting
+            if packet_seq_num != seq_num:
+                print(f"Ignoring packet {packet_seq_num}, expected packet {seq_num}")
                 continue
 
-            sequence_number = int(data[:4].decode())
-            data = data[4:]
-            f.write(data)
-            received_packets.add(sequence_number)
-            received_data_size += len(data)
+            # Write the data from the packet to the file
+            f.write(packet_data)
 
-            # Send an acknowledgement back to the client
-            sock.sendto("ACK".encode(), addr)
-            print(f"Received packet {sequence_number}/{total_packets}")
+            # Send an acknowledgement to the client with the sequence number of the packet
+            ack_packet = struct.pack('!I', seq_num)
+            sock.sendto(ack_packet, client_address)
+            print(f"Sent ACK for packet {seq_num}\n")
 
-    # Close the socket and shut down
-    sock.close()
-    print("File received successfully")
+            seq_num += 1
 
-    # Exit on the console
-    input("Press enter to exit")
-    sys.exit()
+            # If we have received all the data, break out of the loop
+            if f.tell() >= filesize:
+                break
 
+    # Print a message indicating the file has been received
+    print("File received successfully.")
+
+# Define the main function to run the server
+def main():
+    # Set up server parameters and accept user input to set up the server IP and port
+    # Get the current machine's hostname
+    hostname = socket.gethostname()
+
+    # GEt the IP address for the hostname
+    ip_address = socket.gethostbyname(hostname)
+
+    # Print the IP address
+    print(f"IP address for {hostname} is {ip_address}")
+
+    # Prompt the user to enter a port number
+    server_port = input("Enter a port number: ")
+
+    # Conver the user input to an integer
+    server_port = int(server_port)
+
+    # Set up the SERVER_IP and SERVER_PORT variables
+    SERVER_IP = ip_address
+    SERVER_PORT = server_port
+
+    # Print the SERVER_IP and SERVER_PORT variables
+    print(f"Server address: {SERVER_IP}:{SERVER_PORT}")
+
+    # Create a UDP socket
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+    # Bind the socket to the server address and port
+    server_socket.bind((SERVER_IP, SERVER_PORT))
+
+    # Print a message indicating that the server is listening
+    print(f"Server listening on {SERVER_IP}:{SERVER_PORT}")
+
+    # Call the receive_image function to receive the image data
+    receive_image(server_socket)
+
+    # Close the socket and print a message
+    server_socket.close()
+    print("Server socket closed.")
+
+# Call the main function if this file is being run directly
+# This is here to have it run similarly to an imperaritive manner, similar to C, C++ and Java
+# This could be written as a script, considering how short it is and doesn't really need a modular
+# design
 if __name__ == "__main__":
     main()

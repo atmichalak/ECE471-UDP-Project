@@ -52,8 +52,10 @@ and binary data.
 import socket
 import struct
 
+
 # Define the buffer size (increased packet size to include packet header)
 BUFFER_SIZE = 1036
+
 
 # The receive_image() method is the main driver of the server, as this handles the information from the socket
 # connection and rebuilding the image file from the client
@@ -70,17 +72,20 @@ def receive_image(sock):
         while True:
             # Receive the packet from the client
             packet, client_address = sock.recvfrom(BUFFER_SIZE)
-            print(f"Received packet {seq_num} with {len(packet)-8} bytes of data")
+            print(
+                f"Received packet {seq_num} with {len(packet)-8} bytes of data")
 
             # Unpack the packet and get the sequence number, data, and file size
-            packet_data = struct.unpack(f'!I{min(filesize-f.tell(),1024)}sI', packet)
+            packet_data = struct.unpack(
+                f'!I{min(filesize-f.tell(),1024)}sI', packet)
             packet_seq_num = packet_data[0]
             packet_data = packet_data[1]
             packet_filesize = packet_data[2]
 
             # If the sequence number is not what we expect, ignore the packet and continue waiting
             if packet_seq_num != seq_num:
-                print(f"Ignoring packet {packet_seq_num}, expected packet {seq_num}")
+                print(
+                    f"Ignoring packet {packet_seq_num}, expected packet {seq_num}")
                 continue
 
             # Write the data from the packet to the file
@@ -99,6 +104,7 @@ def receive_image(sock):
 
     # Print a message indicating the file has been received
     print("File received successfully.")
+
 
 # Define the main function to run the server
 def main():
@@ -140,6 +146,7 @@ def main():
     # Close the socket and print a message
     server_socket.close()
     print("Server socket closed.")
+
 
 # Call the main function if this file is being run directly
 # This is here to have it run similarly to an imperative manner, similar to C, C++ and Java

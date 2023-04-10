@@ -12,6 +12,14 @@ environment in which the Python program is running.
 
 `os`: https://docs.python.org/3/library/os.html
 
+`select` - The `select` module in Python provides a way to monitor and handle I/O operations on multiple file
+descriptors. This includes sockets, files, pipes, and any other file-like objects that can be monitors for I/O events.
+It provides a mechanism for waiting until one or more of these file descriptors are ready for reading, writing, or
+exceptional conditions. This can be useful for implementing network servers or other applications that need to handle
+multiple connections at once.
+
+`select`: https://docs.python.org/3/library/select.html
+
 `socket` - The `socket` module provides a low-level interface for network communication. It provides functions for
 creating and manipulating sockets, which are the endpoints of a two-way communication link between two programs running
 on a network. The `socket` module is used to create network connection,s send a receive data over the network, and more.
@@ -67,14 +75,16 @@ operations, measure program performance, and more.
 """
 
 import os
+import select
 import socket
 import struct
 import time
-import select
+
 
 # Set up the buffer (aka the packet) 1024 bytes of image data and 12 bytes of sequence numbers and timers
 BUFFER_SIZE = 1036
 TIMEOUT = 1
+
 
 # The send_image() method is the driver of the script/program, as this does all of the work on the image file
 def send_image(filename, sock, SERVER_IP, SERVER_PORT):
@@ -97,7 +107,8 @@ def send_image(filename, sock, SERVER_IP, SERVER_PORT):
         while data:
             # Construct the packet with sequence number, data, file size, and timeout
             if len(data) < 1024:
-                packet = struct.pack(f'!I{len(data)}sI', seq_num, data, filesize)
+                packet = struct.pack(
+                    f'!I{len(data)}sI', seq_num, data, filesize)
             else:
                 packet = struct.pack('!I1024sI', seq_num, data, filesize)
 
@@ -110,14 +121,14 @@ def send_image(filename, sock, SERVER_IP, SERVER_PORT):
                     if not ready[1]:
                         # Timeout expires
                         retry_count += 1
-                        print(f"Timeout: retrying packet {seq_num} ({retry_count}/5)")
+                        print(
+                            f"Timeout: retrying packet {seq_num} ({retry_count}/5)")
                         continue
                 except socket.error as e:
                     # Handle socket error
                     print(f"Socket error: {e}")
                     retry_count += 1
                     continue
-
 
                 # Record the start time for the packet
                 start_time = time.perf_counter_ns()
@@ -162,7 +173,8 @@ def send_image(filename, sock, SERVER_IP, SERVER_PORT):
                 except socket.timeout:
                     # Increment the retry count and print the retry message
                     retry_count += 1
-                    print(f"Timeout: retrying packet {seq_num} ({retry_count}/5)")
+                    print(
+                        f"Timeout: retrying packet {seq_num} ({retry_count}/5)")
 
             # If we've reached the maximum number of retries, close the socket and exit the program
             if retry_count >= 5:
@@ -181,6 +193,7 @@ def send_image(filename, sock, SERVER_IP, SERVER_PORT):
     # Close the socket and print a message
     sock.close()
     print("Client socket closed.")
+
 
 # Define the main function to run the client
 def main():
@@ -212,6 +225,7 @@ def main():
 
     # Close the socket
     client_socket.close()
+
 
 # Call the main function if this file is being run directly
 # This is here to have it run similarly to an imperative manner, similar to C, C++ and Java

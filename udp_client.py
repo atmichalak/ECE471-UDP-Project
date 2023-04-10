@@ -31,6 +31,39 @@ operations, measure program performance, and more.
 
 `time`: https://docs.python.org/3/library/time.html
 
+--- Behavior ---
+
+1.  The code imports necessary libraries `os`, `socket`, `struct`, and `time`.
+2.  It sets the buffer size to 1036 bytes.
+3.  The `send_image` function is defined that takes a filename, a socket, server IP and server port as parameters.
+4.  Inside the function, the size of the image is obtained using os.path.getsize function and sent to the server using
+    `sock.sendto`.
+5.  The image file is opened and read 1024 bytes at a time in a loop.
+6.  A packet is constructed with sequence number, image data, file size, and timeout using `struct.pack`.
+7.  A while loop is started to send the packet to the server, and wait for the acknowledgement. The loop runs up to 5
+    times if the server doesn't send the acknowledgement within the timeout of 1 second.
+8.  The start time for the packet is recorded, and the packet is sent to the server using `sock.sendto`.
+9.  A message is printed indicating the packet has been sent.
+10. The client waits for an acknowledgement from the server using sock.recvfrom with a 1-second timeout.
+11. If the client receives an acknowledgement, the end time is recorded, and the round trip time for the packet is
+    calculated.
+12. The sequence number of the acknowledgement is extracted using `struct.unpack`, and a message is printed indicating
+    the packet has been received by the server.
+13. The start time of the acknowledgement is recorded, and the acknowledgement time is calculated.
+14. The round trip time for the packet is calculated and printed.
+15. The total round trip time is added to the total time for all packets, and the retry loop is exited.
+16. If the maximum number of retries is reached, a message is printed and the function returns.
+17. The sequence number is incremented, and the next 1024 bytes of data are read from the image file.
+18. Once all data has been sent, the total time and average round trip time are calculated and printed.
+19. The socket is closed, and a message is printed indicating the socket has been closed.
+20. The `main` function is defined.
+21. The user is prompted to enter the server IP address and port number.
+22. The server IP and port number are set, and a message is printed indicating the connection has been established.
+23. A UDP socket is created and set to non-blocking mode.
+24. The `send_image` function is called with the appropriate parameters.
+25. The socket is closed.
+26. The main function is called if the code is executed directly.
+
 """
 
 import os
@@ -38,15 +71,17 @@ import socket
 import struct
 import time
 
+# Set up the buffer (aka the packet) 1024 bytes of image data and 12 bytes of sequence numbers and timers
+BUFFER_SIZE = 1036
 
-BUFFER_SIZE = 1036  # increased packet size to include timeout
-
+# The send_image() method is the driver of the script/program, as this does all of the work on the image file
 def send_image(filename, sock, SERVER_IP, SERVER_PORT):
     # Get the size of the image
     filesize = os.path.getsize(filename)
 
     # Send the size of the image to the server
     sock.sendto(str(filesize).encode(), (SERVER_IP, SERVER_PORT))
+    print("\nSending data...")
 
     # Open the image file and read 1024 bytes at a time
     with open(filename, "rb") as f:
@@ -56,7 +91,10 @@ def send_image(filename, sock, SERVER_IP, SERVER_PORT):
         retry_count = 0
         while data:
             # Construct the packet with sequence number, data, file size, and timeout
-            packet = struct.pack('!I1024sI', seq_num, data, filesize) # sequence number is 4-byte integer
+            if len(data) < 1024:
+                packet = struct.pack(f'!I{len(data)}sI', seq_num, data, filesize)
+            else:
+                packet = struct.pack('!I1024sI', seq_num, data, filesize)
 
             while retry_count < 5:
                 # Record the start time for the packet
@@ -119,6 +157,7 @@ def send_image(filename, sock, SERVER_IP, SERVER_PORT):
     sock.close()
     print("Client socket closed.")
 
+# Define the main function to run the client
 def main():
     # Set up the client-server connection
     # Prompt the user to enter the IP address
@@ -149,5 +188,9 @@ def main():
     # Close the socket
     client_socket.close()
 
+# Call the main function if this file is being run directly
+# This is here to have it run similarly to an imperative manner, similar to C, C++ and Java
+# This could be written as a script, considering how short it is and doesn't really need a modular
+# design
 if __name__ == '__main__':
     main()

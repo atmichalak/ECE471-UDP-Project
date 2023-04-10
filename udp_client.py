@@ -70,9 +70,11 @@ import os
 import socket
 import struct
 import time
+import select
 
 # Set up the buffer (aka the packet) 1024 bytes of image data and 12 bytes of sequence numbers and timers
 BUFFER_SIZE = 1036
+TIMEOUT = 1
 
 # The send_image() method is the driver of the script/program, as this does all of the work on the image file
 def send_image(filename, sock, SERVER_IP, SERVER_PORT):
@@ -89,6 +91,9 @@ def send_image(filename, sock, SERVER_IP, SERVER_PORT):
         seq_num = 1
         total_time = 0
         retry_count = 0
+
+        # Wait for the acknowledgement from the server with a 1 second timeout
+        sock.settimeout(TIMEOUT)
         while data:
             # Construct the packet with sequence number, data, file size, and timeout
             if len(data) < 1024:
@@ -97,35 +102,55 @@ def send_image(filename, sock, SERVER_IP, SERVER_PORT):
                 packet = struct.pack('!I1024sI', seq_num, data, filesize)
 
             while retry_count < 5:
+                # Wait until the socket is ready for writing or the timeout expires
+                try:
+                    # Use select to wait for the socket to be ready for writing
+                    # and set it to be non-blocking for allow for immediate return
+                    ready = select.select([], [sock], [sock], TIMEOUT)
+                    if not ready[1]:
+                        # Timeout expires
+                        retry_count += 1
+                        print(f"Timeout: retrying packet {seq_num} ({retry_count}/5)")
+                        continue
+                except socket.error as e:
+                    # Handle socket error
+                    print(f"Socket error: {e}")
+                    retry_count += 1
+                    continue
+
+
                 # Record the start time for the packet
-                start_time = time.perf_counter()
+                start_time = time.perf_counter_ns()
 
                 # Send the packet to the server
                 sock.sendto(packet, (SERVER_IP, SERVER_PORT))
                 print(f"Sent packet {seq_num} with {len(data)} bytes of data")
 
-                # Wait for the acknowledgement from the server with a 1 second timeout
-                sock.settimeout(1)
                 try:
                     ack_data, server_address = sock.recvfrom(BUFFER_SIZE)
 
                     # Record the end time for the packet and calculate the packet time
-                    end_time = time.perf_counter()
+                    end_time = time.perf_counter_ns()
                     packet_time = end_time - start_time
-                    print(f"Client to server packet time: {packet_time*1000000:.0f}us")
+                    print(f"Client to server packet time: {packet_time}ns")
 
                     # Unpack the acknowledgement packet and get the sequence number
                     ack_seq_num = struct.unpack('!I', ack_data)[0]
                     print(f"Received ACK for packet {ack_seq_num}")
 
                     # Record the start time for the ACK and calculate the ACK time
-                    ack_start_time = time.perf_counter()
+                    ack_start_time = time.perf_counter_ns()
                     ack_time = ack_start_time - end_time
-                    print(f"Server to client ACK time: {ack_time*1000000:.0f}us")
+                    print(f"Server to client ACK time: {ack_time}ns")
+
+                    # Trash conversion from ack_time (ns) time TIMEOUT in seconds
+                    if ack_time > TIMEOUT*1000000000:
+                        # Timeout if ACK time exceeds a certain value
+                        raise socket.timeout("ACK time exceeded maximum value")
 
                     # Record round trip time and display
                     round_trip_time = packet_time + ack_time
-                    print(f"Round-trip time: {round_trip_time*1000000:.0f}us\n")
+                    print(f"Round-trip time: {round_trip_time}ns\n")
 
                     # Add the packet time and ACK time to the total round trip time
                     total_time += (packet_time + ack_time)
@@ -149,9 +174,9 @@ def send_image(filename, sock, SERVER_IP, SERVER_PORT):
             data = f.read(1024)
 
         # Calculate the total time and average round trip time and print the result
-        print(f"Total time: {total_time*1000000:.0f}us")
+        print(f"Total time: {total_time}ns")
         avg_round_trip_time = total_time / seq_num
-        print(f"Average round trip time: {avg_round_trip_time*1000000:.0f}us")
+        print(f"Average round trip time: {avg_round_trip_time}ns")
 
     # Close the socket and print a message
     sock.close()

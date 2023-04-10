@@ -147,17 +147,19 @@ def send_image(filename, sock, SERVER_IP, SERVER_PORT):
 
                     # Unpack the acknowledgement packet and get the sequence number
                     ack_seq_num = struct.unpack('!I', ack_data)[0]
-                    print(f"Received ACK for packet {ack_seq_num}")
 
                     # Record the start time for the ACK and calculate the ACK time
                     ack_start_time = time.perf_counter_ns()
                     ack_time = ack_start_time - end_time
-                    print(f"Server to client ACK time: {ack_time}ns")
 
                     # Trash conversion from ack_time (ns) time TIMEOUT in seconds
                     if ack_time > TIMEOUT*1000000000:
                         # Timeout if ACK time exceeds a certain value
                         raise socket.timeout("ACK time exceeded maximum value")
+
+                    # Formatted print
+                    print(f"Received ACK for packet {ack_seq_num}")
+                    print(f"Server to client ACK time: {ack_time}ns")
 
                     # Record round trip time and display
                     round_trip_time = packet_time + ack_time

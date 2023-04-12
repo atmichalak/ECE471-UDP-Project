@@ -1,5 +1,7 @@
 """
 Author: Alexander Michalak
+        Paul Celmer
+        Omar Hawari
 
 The `socket` module provides low-level network functionality, while the `struct` module performs conversions between
 Python values and C structs.
@@ -54,7 +56,7 @@ import struct
 
 
 # Define the buffer size (increased packet size to include packet header)
-BUFFER_SIZE = 1036
+BUFFER_SIZE = 1032
 
 
 # The receive_image() method is the main driver of the server, as this handles the information from the socket
@@ -72,26 +74,37 @@ def receive_image(sock):
         while True:
             # Receive the packet from the client
             packet, client_address = sock.recvfrom(BUFFER_SIZE)
-            print(
-                f"Received packet {seq_num} with {len(packet)-8} bytes of data")
+            
+            # This is for output to console and it peels off the 1024 bytes in the f-string
+            # since the actual packet is 1032 bytes in length, not 1024
+            print(f"Received packet {seq_num} with {len(packet)-8} bytes of data")
 
             # Unpack the packet and get the sequence number, data, and file size
-            packet_data = struct.unpack(
-                f'!I{min(filesize-f.tell(),1024)}sI', packet)
+            # struct.unpack() does the opposite (obviously) as struct.pack() and breaks the struct into chunks
+            # determined by the user parameters -- this also catches the last packet that is smaller than 1024 bytes
+            # packet_date[0] is the sequence number of type !I -- big-endian integer of 4 bytes
+            # packet_data[1] is the image data of type s1024 -- char[] of 1024 bytes
+            # packet_data[2] is the filesize, for looping until the size of 'test.jpg' is the same as 'test2.jpg'
+            # No error checking or data validity but that is out of scope -- could be done with a checksum sent with the
+            # packet header
+            packet_data = struct.unpack(f'!I{min(filesize-f.tell(),1024)}sI', packet)
             packet_seq_num = packet_data[0]
             packet_data = packet_data[1]
             packet_filesize = packet_data[2]
 
             # If the sequence number is not what we expect, ignore the packet and continue waiting
+            # This is for TIMEOUTs and out-of-order packets -- probably out of scope for this project
             if packet_seq_num != seq_num:
-                print(
-                    f"Ignoring packet {packet_seq_num}, expected packet {seq_num}")
+                print(f"Ignoring packet {packet_seq_num}, expected packet {seq_num}")
                 continue
 
-            # Write the data from the packet to the file
+            # Write the data from the packet to the file -- the opposite of what is done in the client, rb or read-binary vs.
+            # write-binary
             f.write(packet_data)
 
             # Send an acknowledgement to the client with the sequence number of the packet
+            # This could be sent as a small packet with a separate loop or function in in the client receiving this
+            # and handling it for better space and time performance
             ack_packet = struct.pack('!I', seq_num)
             sock.sendto(ack_packet, client_address)
             print(f"Sent ACK for packet {seq_num}\n")
@@ -99,6 +112,8 @@ def receive_image(sock):
             seq_num += 1
 
             # If we have received all the data, break out of the loop
+            # No checksum or data validity check, but essentially a size parity check
+            # test.jpg == test2.jpg? -- if yes, break out of the loop and return to 'main'
             if f.tell() >= filesize:
                 break
 
@@ -134,7 +149,8 @@ def main():
     # Create a UDP socket
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-    # Bind the socket to the server address and port
+    # Bind the socket to the server address and port (in this case, will be host IP and any
+    # port of choice)
     server_socket.bind((SERVER_IP, SERVER_PORT))
 
     # Print a message indicating that the server is listening

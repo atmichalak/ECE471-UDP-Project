@@ -1,5 +1,7 @@
 """
 Author: Alexander Michalak
+        Paul Celmer
+        Omar Hawari
 
 The `socket` module provides low-level network functionality, while the `struct` module performs conversions between
 Python values and C structs. The `os` module provides a way of using operating system dependent functionality, such as
@@ -81,48 +83,61 @@ import struct
 import time
 
 
-# Set up the buffer (aka the packet) 1024 bytes of image data and 12 bytes of sequence numbers and timers
-BUFFER_SIZE = 1036
+# Set up the buffer (aka the packet) 1024 bytes of image data and 12 bytes of sequence numbers and filesize information
+BUFFER_SIZE = 1032
 TIMEOUT = 1
 
 
 # The send_image() method is the driver of the script/program, as this does all of the work on the image file
 def send_image(filename, sock, SERVER_IP, SERVER_PORT):
-    # Get the size of the image
+    # Get the size of the image (this is sent every packet to track file size vs. sent size)
     filesize = os.path.getsize(filename)
 
-    # Send the size of the image to the server
+    # Send the size of the image to the server (this is also contained in every packet header)
     sock.sendto(str(filesize).encode(), (SERVER_IP, SERVER_PORT))
     print("\nSending data...")
 
-    # Open the image file and read 1024 bytes at a time
+    # Open the image file and read 1024 bytes at a time (packet chunks vs. total image or file size)
+    # with is a 'safer' style of doing a try loop, less error prone -- also the object is closed after
+    # the 'with' block is executed
+    # Behaves similarly to a C code block that starts with 'FILE *file = fopen(...)' and ends with 'fclose(...)'
+    # Has automatic memory management so no C footguns or landmines
     with open(filename, "rb") as f:
         data = f.read(1024)
         seq_num = 1
         total_time = 0
         retry_count = 0
 
-        # Wait for the acknowledgement from the server with a 1 second timeout
+        # Wait for the acknowledgement from the server with timeout of TIMEOUT
         sock.settimeout(TIMEOUT)
+
+        # Main loop for sending the image data in 1024 byte chunks to the server
         while data:
-            # Construct the packet with sequence number, data, file size, and timeout
+            # Construct the packet with sequence number, data, and file size
+            # This if...else... is to accept the last packet of less than 1024 bytes of data without throwing
+            # a socket error -> [WinError 10040]
             if len(data) < 1024:
-                packet = struct.pack(
-                    f'!I{len(data)}sI', seq_num, data, filesize)
+                # struct makes a C struct, using a function defined in the Python standard library and in this case
+                # it makes a struct that is big-endian (or network) using the !, I for an unsigned int, s for 1024
+                # bytes of type char[] for the data, and another unsigned int for filesize for a total of 1032 bytes
+                # !I = 4 bytes, s1024 = 1024 bytes and I = 4 bytes
+                packet = struct.pack(f'!I{len(data)}sI', seq_num, data, filesize)
             else:
                 packet = struct.pack('!I1024sI', seq_num, data, filesize)
 
+            # The retry errors could be any value, using 5 to just show it works and shuts off so it doesn't keep
+            # running in an infinite loop
             while retry_count < 5:
                 # Wait until the socket is ready for writing or the timeout expires
                 try:
                     # Use select to wait for the socket to be ready for writing
                     # and set it to be non-blocking for allow for immediate return
+                    # Otherwise it crashes with another WinError -> [WinError 10035]
                     ready = select.select([], [sock], [sock], TIMEOUT)
                     if not ready[1]:
                         # Timeout expires
                         retry_count += 1
-                        print(
-                            f"Timeout: retrying packet {seq_num} ({retry_count}/5)")
+                        print(f"Timeout: retrying packet {seq_num} ({retry_count}/5)")
                         continue
                 except socket.error as e:
                     # Handle socket error
@@ -131,6 +146,7 @@ def send_image(filename, sock, SERVER_IP, SERVER_PORT):
                     continue
 
                 # Record the start time for the packet
+                # time.perf_counter_ns() queries QueryPerformanceFrequency and QueryPerformanceCounter if using Windows
                 start_time = time.perf_counter_ns()
 
                 # Send the packet to the server
@@ -138,9 +154,11 @@ def send_image(filename, sock, SERVER_IP, SERVER_PORT):
                 print(f"Sent packet {seq_num} with {len(data)} bytes of data")
 
                 try:
+                    # This is for the ack_data from the server, buffer could be smaller to save data on the network
+                    # as this should only contain the ACK data containing the sequence number in this program
                     ack_data, server_address = sock.recvfrom(BUFFER_SIZE)
 
-                    # Record the end time for the packet and calculate the packet time
+                    # Record the end time for the packet and calculate the packet time (for the data packet)
                     end_time = time.perf_counter_ns()
                     packet_time = end_time - start_time
                     print(f"Client to server packet time: {packet_time}ns")
@@ -157,15 +175,17 @@ def send_image(filename, sock, SERVER_IP, SERVER_PORT):
                         # Timeout if ACK time exceeds a certain value
                         raise socket.timeout("ACK time exceeded maximum value")
 
-                    # Formatted print
+                    # Formatted print for client output
                     print(f"Received ACK for packet {ack_seq_num}")
                     print(f"Server to client ACK time: {ack_time}ns")
 
-                    # Record round trip time and display
+                    # Record round trip time and display (again, for more output)
                     round_trip_time = packet_time + ack_time
                     print(f"Round-trip time: {round_trip_time}ns\n")
 
                     # Add the packet time and ACK time to the total round trip time
+                    # Once the packets are done being sent, this is pulled out of this loop and used
+                    # at the end of the program for total time and average time to output
                     total_time += (packet_time + ack_time)
 
                     # Exit the retry loop and continue to the next packet
@@ -184,6 +204,8 @@ def send_image(filename, sock, SERVER_IP, SERVER_PORT):
                 sock.close()
                 return
 
+            # Obviously, this is iterated every loop until the data is done being read by the client and sent
+            # to the server
             seq_num += 1
             data = f.read(1024)
 

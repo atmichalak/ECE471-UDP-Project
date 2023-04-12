@@ -19,18 +19,18 @@ and binary data.
 
 `struct`: https://docs.python.org/3/library/struct.html
 
---- Behavior ---
+--- Behavior --- Top to bottom explaination
 
 1.  The code imports two modules: `socket` and `struct`.
-2.  The code defines a constant variable `BUFFER_SIZE` with a value of 1036. This value will be used as the size of the
+2.  The code defines a constant variable `BUFFER_SIZE` with a value of 1032. This value will be used as the size of the
     buffer for receiving data over the network.
-3.  The code defines a function `receive_image` that takes one argument, `sock`, which is a socket object. The function
+3.  The code defines a function `receive_image()` that takes one argument, `sock`, which is a socket object. The function
     receives an image data from a client, unpacks it and writes it to a file.
-4.  The `receive_image` function first receives the size of the image data from the client using the `recvfrom`
+4.  The `receive_image()` function first receives the size of the image data from the client using the `recvfrom()`
     method on the socket object `sock`. It then converts the data to an integer using the `decode()` method.
 5.  The function then opens a new file in binary write mode with the name "test2.jpg" using the `open()` method.
 6.  The function uses a while loop to receive packets of data from the client. It receives a packet using the
-    `recvfrom` method on the sock object and unpacks it using the `struct.unpack()` method, which returns a tuple
+    `recvfrom()` method on the sock object and unpacks it using the `struct.unpack()` method, which returns a tuple
     containing the sequence number, data, and file size.
 7.  The function checks if the sequence number of the packet matches the expected sequence number, and if it does not
     match, it ignores the packet and continues waiting for the next packet.
@@ -43,11 +43,11 @@ and binary data.
     function breaks out of the while loop.
 11. The function prints a message indicating that the file has been received successfully.
 12. The code defines a main function that sets up the server parameters, accepts user input to set up the server IP and
-    port, creates a UDP socket, binds the socket to the server address and port, and calls the `receive_image` function
+    port, creates a UDP socket, binds the socket to the server address and port, and calls the `receive_image()` function
     to receive the image data.
 13. Finally, the main function closes the socket and prints a message indicating that the server socket has been closed.
 14. The code checks if the file is being run directly using the `__name__` variable, and if it is, it calls the
-    main function.
+    main function. This is to have the program/script resemble C or C++ code.
 
 """
 
@@ -68,8 +68,9 @@ def receive_image(sock):
     print("\nReceiving data...")
     print(f"Received image size: {filesize}")
 
-    # Open a new file to write the image data to
+    # Open a new file to write the image data to -- in this case 'test2.jpg' as per the requirements for the project
     with open("test2.jpg", "wb") as f:
+        # Since receiving, seq_num starts at 1 as it is expecting 1 from the client
         seq_num = 1
         while True:
             # Receive the packet from the client

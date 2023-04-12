@@ -41,23 +41,23 @@ operations, measure program performance, and more.
 
 `time`: https://docs.python.org/3/library/time.html
 
---- Behavior ---
+--- Behavior --- Top to bottom explanation
 
 1.  The code imports necessary libraries `os`, `socket`, `struct`, and `time`.
-2.  It sets the buffer size to 1036 bytes.
-3.  The `send_image` function is defined that takes a filename, a socket, server IP and server port as parameters.
-4.  Inside the function, the size of the image is obtained using os.path.getsize function and sent to the server using
-    `sock.sendto`.
+2.  It sets the buffer size to 1032 bytes.
+3.  The `send_image()` function is defined that takes a filename, a socket, server IP and server port as parameters.
+4.  Inside the function, the size of the image is obtained using `os.path.getsize()` function and sent to the server using
+    `sock.sendto()`.
 5.  The image file is opened and read 1024 bytes at a time in a loop.
-6.  A packet is constructed with sequence number, image data, file size, and timeout using `struct.pack`.
+6.  A packet is constructed with sequence number, image data, file size, and timeout using `struct.pack()`.
 7.  A while loop is started to send the packet to the server, and wait for the acknowledgement. The loop runs up to 5
-    times if the server doesn't send the acknowledgement within the timeout of 1 second.
-8.  The start time for the packet is recorded, and the packet is sent to the server using `sock.sendto`.
+    times if the server doesn't send the acknowledgement within the timeout of TIMEOUT seconds.
+8.  The start time for the packet is recorded, and the packet is sent to the server using `sock.sendto()`.
 9.  A message is printed indicating the packet has been sent.
-10. The client waits for an acknowledgement from the server using sock.recvfrom with a 1-second timeout.
+10. The client waits for an acknowledgement from the server using `sock.recvfrom()` with a TIMEOUT-second timeout.
 11. If the client receives an acknowledgement, the end time is recorded, and the round trip time for the packet is
     calculated.
-12. The sequence number of the acknowledgement is extracted using `struct.unpack`, and a message is printed indicating
+12. The sequence number of the acknowledgement is extracted using `struct.unpack()`, and a message is printed indicating
     the packet has been received by the server.
 13. The start time of the acknowledgement is recorded, and the acknowledgement time is calculated.
 14. The round trip time for the packet is calculated and printed.
@@ -66,11 +66,11 @@ operations, measure program performance, and more.
 17. The sequence number is incremented, and the next 1024 bytes of data are read from the image file.
 18. Once all data has been sent, the total time and average round trip time are calculated and printed.
 19. The socket is closed, and a message is printed indicating the socket has been closed.
-20. The `main` function is defined.
+20. The `main()` function is defined as to resemble a C or C++ program.
 21. The user is prompted to enter the server IP address and port number.
 22. The server IP and port number are set, and a message is printed indicating the connection has been established.
 23. A UDP socket is created and set to non-blocking mode.
-24. The `send_image` function is called with the appropriate parameters.
+24. The `send_image()` function is called with the appropriate parameters.
 25. The socket is closed.
 26. The main function is called if the code is executed directly.
 
